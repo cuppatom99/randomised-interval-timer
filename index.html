@@ -16,19 +16,18 @@
             align-items: center; justify-content: center; height: 100vh; text-align: center;
             transition: background-color 0.3s ease, color 0.3s ease; overflow: hidden;
         }
-        /* State-specific Body Colors */
         body.work-active { background-color: var(--orange); color: var(--white); }
         body.rest-active { background-color: var(--blue); color: var(--white); }
 
         #timer { font-size: 8rem; font-weight: 900; line-height: 1; margin: 10px 0; }
-        #status { font-size: 3rem; font-weight: bold; text-transform: uppercase; margin: 0; }
+        #status { font-size: 3.5rem; font-weight: bold; text-transform: uppercase; margin: 0; }
         #set-info { font-size: 1.2rem; margin-bottom: 15px; opacity: 0.9; }
 
         .card { 
             background: var(--white); padding: 1.5rem; border-radius: 30px; 
             box-shadow: 0 10px 0 var(--deep); width: 85%; max-width: 400px;
-            border: 3px solid var(--black); overflow-y: auto; max-height: 80vh;
-            color: var(--deep); /* Keep inputs readable */
+            border: 3px solid var(--black); overflow-y: auto; max-height: 85vh;
+            color: var(--deep);
         }
         .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         .input-group { text-align: left; }
@@ -45,8 +44,6 @@
         #start-btn { background: var(--blue); color: var(--white); box-shadow: 0 5px 0 var(--deep); }
         #pause-btn { background: var(--yellow); color: var(--deep); box-shadow: 0 5px 0 var(--deep); display: none; }
         .stop-active { background: var(--orange) !important; color: white !important; }
-        
-        /* Flash for Random Beeps (White to be visible on any background) */
         .flash-trigger { background-color: var(--white) !important; color: var(--black) !important; }
     </style>
 </head>
@@ -77,23 +74,23 @@
 
         <div class="input-grid">
             <div class="input-group">
-                <label>Rest Between Sets</label>
-                <select id="rest-input">
-                    <script>for(let i=5;i<=60;i+=5) document.write(`<option value="${i}" ${i==30?'selected':''}>${i}s</option>`)</script>
+                <label>Min Gap</label>
+                <select id="min-rand">
+                    <script>for(let i=5;i<=55;i++) document.write(`<option value="${i}">${i}s</option>`)</script>
                 </select>
             </div>
             <div class="input-group">
-                <label>Min Gap</label>
-                <select id="min-rand">
-                    <script>for(let i=5;i<=55;i++) document.write(`<option value="${i}"> ${i}s</option>`)</script>
+                <label>Max Gap</label>
+                <select id="max-rand">
+                    <script>for(let i=10;i<=60;i++) document.write(`<option value="${i}" ${i==30?'selected':''}>${i}s</option>`)</script>
                 </select>
             </div>
         </div>
 
         <div class="input-group" style="margin-bottom: 15px;">
-            <label>Max Gap</label>
-            <select id="max-rand">
-                <script>for(let i=10;i<=60;i++) document.write(`<option value="${i}" ${i==30?'selected':''}>${i}s</option>`)</script>
+            <label>Rest Between Sets</label>
+            <select id="rest-input">
+                <script>for(let i=5;i<=60;i+=5) document.write(`<option value="${i}" ${i==30?'selected':''}>${i}s</option>`)</script>
             </select>
         </div>
 
@@ -144,8 +141,6 @@
 
         function tick() {
             if (paused) return;
-            
-            // Start beeps for WORK
             if ((phase === 'PREP' || phase === 'REST') && time <= 5 && time > 0) beep(440, 0.1, 1);
             
             time--;
@@ -171,7 +166,6 @@
                 }
             }
 
-            // Random beep trigger
             if (phase === 'WORK' && time === nextBeep) {
                 beep(660, 0.2, beepState);
                 beepState = (beepState === 1) ? 2 : 1;
