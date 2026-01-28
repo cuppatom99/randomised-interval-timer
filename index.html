@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>HIIT Reactive Pro</title>
+    <title>HIIT Flow Pro</title>
     <style>
         :root {
             --bg-default: #FCF7F2; --deep: #3D1F6E; --orange: #F2631A;
@@ -14,10 +14,11 @@
             font-family: sans-serif; background-color: var(--bg-default); 
             color: var(--deep); margin: 0; display: flex; flex-direction: column; 
             align-items: center; justify-content: center; height: 100vh; text-align: center;
-            transition: background-color 0.3s ease, color 0.3s ease; overflow: hidden;
+            transition: background-color 0.2s ease, color 0.2s ease; overflow: hidden;
         }
-        body.work-active { background-color: var(--orange); color: var(--white); }
-        body.rest-active { background-color: var(--blue); color: var(--white); }
+        /* Your specific phase mapping */
+        body.work-active { background-color: var(--blue); color: var(--white); }
+        body.rest-active { background-color: var(--orange); color: var(--white); }
 
         #timer { font-size: 8rem; font-weight: 900; line-height: 1; margin: 10px 0; }
         #status { font-size: 3.5rem; font-weight: bold; text-transform: uppercase; margin: 0; }
@@ -36,14 +37,14 @@
             width: 100%; padding: 10px; border-radius: 12px; border: 2px solid var(--deep); 
             font-size: 0.9rem; font-weight: bold; background: var(--bg-default);
         }
-        .controls { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
+        .controls { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 10px; }
         button { 
-            flex: 1; padding: 18px; font-size: 1.2rem; font-weight: 900; 
+            padding: 18px; font-size: 1.2rem; font-weight: 900; 
             border-radius: 15px; border: 2px solid var(--black); cursor: pointer; 
         }
         #start-btn { background: var(--blue); color: var(--white); box-shadow: 0 5px 0 var(--deep); }
-        #pause-btn { background: var(--yellow); color: var(--deep); box-shadow: 0 5px 0 var(--deep); display: none; }
-        .stop-active { background: var(--orange) !important; color: white !important; }
+        #quit-btn { background: var(--orange); color: var(--white); box-shadow: 0 5px 0 var(--deep); display: none; margin-top: 20px; }
+        
         .flash-trigger { background-color: var(--white) !important; color: var(--black) !important; }
     </style>
 </head>
@@ -62,10 +63,10 @@
                 </select>
             </div>
             <div class="input-group">
-                <label>Work Length</label>
+                <label>Set Duration</label>
                 <select id="dur-input">
-                    <option value="10">10s (Test)</option>
                     <option value="60">1m</option>
+                    <option value="120">2m</option>
                     <option value="180" selected>3m</option>
                     <option value="300">5m</option>
                 </select>
@@ -88,21 +89,22 @@
         </div>
 
         <div class="input-group" style="margin-bottom: 15px;">
-            <label>Rest Between Sets</label>
+            <label>Rest Between Main Sets</label>
             <select id="rest-input">
                 <script>for(let i=5;i<=60;i+=5) document.write(`<option value="${i}" ${i==30?'selected':''}>${i}s</option>`)</script>
             </select>
         </div>
 
         <div class="controls">
-            <button id="start-btn" onclick="toggle()">START</button>
-            <button id="pause-btn" onclick="p()">PAUSE</button>
+            <button id="start-btn" onclick="toggle()">START TRAINING</button>
         </div>
     </div>
 
+    <button id="quit-btn" onclick="stop()">QUIT TO MENU</button>
+
     <script>
-        let timer = null, running = false, paused = false, phase = 'PREP';
-        let time = 0, set = 1, total = 0, nextBeep = -1, beepState = 1, audio = null;
+        let timer = null, running = false, phase = 'PREP';
+        let time = 0, set = 1, total = 0, nextBeep = -1, isWork = true, audio = null;
 
         const body = document.body;
         const statusEl = document.getElementById('status');
@@ -117,8 +119,6 @@
             if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
             if (audio.state === 'suspended') audio.resume();
             
-            if (phase === 'WORK') flash();
-
             for (let i = 0; i < r; i++) {
                 setTimeout(() => {
                     let o = audio.createOscillator(), g = audio.createGain();
@@ -140,25 +140,28 @@
         }
 
         function tick() {
-            if (paused) return;
-            if ((phase === 'PREP' || phase === 'REST') && time <= 5 && time > 0) beep(440, 0.1, 1);
+            // Countdown beeps for Phase starts
+            if ((phase === 'PREP' || phase === 'INTERSET-REST') && time <= 5 && time > 0) beep(440, 0.1, 1);
             
             time--;
 
             if (time < 0) {
-                if (phase === 'PREP' || phase === 'REST') {
-                    phase = 'WORK';
+                if (phase === 'PREP' || phase === 'INTERSET-REST') {
+                    // Start the Work portion of the set
+                    phase = 'SET-ACTIVE';
+                    isWork = true;
                     time = parseInt(document.getElementById('dur-input').value);
                     setBeep();
                     beep(880, 0.4, 1);
                     body.className = 'work-active';
-                } else if (phase === 'WORK') {
+                } else if (phase === 'SET-ACTIVE') {
+                    // Main set time expired
                     if (set < total) {
                         set++;
-                        phase = 'REST';
+                        phase = 'INTERSET-REST';
                         time = parseInt(document.getElementById('rest-input').value);
                         beep(440, 0.5, 2);
-                        body.className = 'rest-active';
+                        body.className = '';
                     } else {
                         stop();
                         return;
@@ -166,42 +169,34 @@
                 }
             }
 
-            if (phase === 'WORK' && time === nextBeep) {
-                beep(660, 0.2, beepState);
-                beepState = (beepState === 1) ? 2 : 1;
+            // The Reactive Internal Toggle (WORK/REST)
+            if (phase === 'SET-ACTIVE' && time === nextBeep) {
+                isWork = !isWork;
+                body.className = isWork ? 'work-active' : 'rest-active';
+                beep(660, 0.2, 3); // 3 beeps on every internal change
                 setBeep();
             }
 
-            statusEl.textContent = phase;
+            statusEl.textContent = (phase === 'SET-ACTIVE') ? (isWork ? 'WORK' : 'REST') : phase.replace('-', ' ');
             timerEl.textContent = (time > 59) ? Math.floor(time/60) + ":" + (time%60).toString().padStart(2, '0') : time;
             document.getElementById('set-info').textContent = "Set: " + set + " / " + total;
         }
 
         function toggle() {
-            if (running) stop(); 
-            else {
-                running = true; total = parseInt(document.getElementById('sets-input').value);
-                set = 1; phase = 'PREP'; time = 5;
-                document.getElementById('start-btn').innerText = 'STOP';
-                document.getElementById('start-btn').classList.add('stop-active');
-                document.getElementById('pause-btn').style.display = 'block';
-                document.getElementById('config-card').style.display = 'none';
-                timer = setInterval(tick, 1000);
-            }
-        }
-
-        function p() {
-            paused = !paused;
-            document.getElementById('pause-btn').innerText = paused ? 'RESUME' : 'PAUSE';
+            running = true; 
+            total = parseInt(document.getElementById('sets-input').value);
+            set = 1; phase = 'PREP'; time = 5;
+            document.getElementById('config-card').style.display = 'none';
+            document.getElementById('quit-btn').style.display = 'block';
+            timer = setInterval(tick, 1000);
         }
 
         function stop() {
-            clearInterval(timer); running = false; paused = false;
+            clearInterval(timer); 
+            running = false;
             body.className = '';
-            document.getElementById('start-btn').innerText = 'START';
-            document.getElementById('start-btn').classList.remove('stop-active');
-            document.getElementById('pause-btn').style.display = 'none';
             document.getElementById('config-card').style.display = 'block';
+            document.getElementById('quit-btn').style.display = 'none';
             statusEl.textContent = 'READY';
             timerEl.textContent = '0:00';
         }
