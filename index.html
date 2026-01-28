@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Reactive Drill Pro</title>
+    <title>Reactive Flash Trainer</title>
     <style>
         :root {
             --bg: #FCF7F2;
@@ -25,12 +25,13 @@
             align-items: center; 
             justify-content: center; 
             height: 100vh; 
-            text-align: center; 
+            text-align: center;
+            transition: background 0.1s ease-out; /* Smooth flash transition */
         }
         
-        #timer { font-size: 8rem; font-weight: 900; color: var(--deep); line-height: 1; margin: 10px 0; }
-        #status { font-size: 2rem; font-weight: bold; color: var(--orange); text-transform: uppercase; }
-        #set-info { font-size: 1.2rem; margin-bottom: 20px; color: var(--deep); opacity: 0.8; }
+        #timer { font-size: 8rem; font-weight: 900; color: var(--deep); line-height: 1; margin: 10px 0; z-index: 2; }
+        #status { font-size: 2rem; font-weight: bold; color: var(--orange); text-transform: uppercase; z-index: 2; }
+        #set-info { font-size: 1.2rem; margin-bottom: 20px; color: var(--deep); opacity: 0.8; z-index: 2; }
 
         .card { 
             background: var(--white); 
@@ -40,192 +41,8 @@
             width: 85%; 
             max-width: 400px;
             border: 3px solid var(--black);
+            z-index: 2;
         }
 
         .input-group { margin-bottom: 20px; text-align: left; }
-        label { display: block; font-weight: 800; font-size: 0.9rem; margin-bottom: 5px; color: var(--deep); }
-        
-        select, input { 
-            width: 100%; 
-            padding: 12px; 
-            border-radius: 12px; 
-            border: 2px solid var(--deep); 
-            font-size: 1.1rem; 
-            font-weight: bold;
-            background: var(--bg);
-        }
-
-        .controls { display: flex; gap: 10px; width: 100%; margin-top: 10px; }
-        button { 
-            flex: 1; 
-            padding: 18px; 
-            font-size: 1.2rem; 
-            font-weight: 900; 
-            border-radius: 15px; 
-            border: 2px solid var(--black); 
-            cursor: pointer; 
-            transition: transform 0.1s;
-        }
-        #start-btn { background: var(--blue); color: var(--white); box-shadow: 0 5px 0 var(--deep); }
-        #pause-btn { background: var(--yellow); color: var(--deep); box-shadow: 0 5px 0 var(--deep); display: none; }
-        #start-btn.stop { background: var(--orange); }
-        button:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--deep); }
-    </style>
-</head>
-<body>
-
-    <div id="status">READY</div>
-    <div id="timer">0:00</div>
-    <div id="set-info">Set: 0 / 0</div>
-
-    <div class="card" id="setup-card">
-        <div class="input-group">
-            <label>NUMBER OF SETS</label>
-            <select id="sets-input">
-                <script>for(let i=1;i<=10;i++) document.write(`<option value="${i}">${i} Set${i>1?'s':''}</option>`)</script>
-            </select>
-        </div>
-        <div class="input-group">
-            <label>SET DURATION</label>
-            <select id="duration-input">
-                <option value="30">30 Seconds</option>
-                <option value="60">1 Minute</option>
-                <option value="120">2 Minutes</option>
-                <option value="180" selected>3 Minutes</option>
-                <option value="240">4 Minutes</option>
-                <option value="300">5 Minutes</option>
-            </select>
-        </div>
-        <div class="controls">
-            <button id="start-btn" onclick="toggleStart()">START</button>
-            <button id="pause-btn" onclick="togglePause()">PAUSE</button>
-        </div>
-    </div>
-
-    <script>
-        let mainInterval = null;
-        let isRunning = false;
-        let isPaused = false;
-        let phase = 'PREP'; // PREP, WORK
-        
-        let timeLeft = 0;
-        let currentSet = 1;
-        let totalSets = 0;
-        let nextBeepTime = 0;
-        let beepCountState = 1; // Alternates between 1 and 2
-
-        const timerEl = document.getElementById('timer');
-        const statusEl = document.getElementById('status');
-        const infoEl = document.getElementById('set-info');
-        const card = document.getElementById('setup-card');
-        const startBtn = document.getElementById('start-btn');
-        const pauseBtn = document.getElementById('pause-btn');
-
-        let audioCtx = null;
-
-        function playBeep(frequency, duration, repeat = 1) {
-            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if(audioCtx.state === 'suspended') audioCtx.resume();
-
-            for(let i = 0; i < repeat; i++) {
-                setTimeout(() => {
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    osc.frequency.value = frequency;
-                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + duration);
-                }, i * 200); // 200ms gap between double beeps
-            }
-        }
-
-        function formatTime(secs) {
-            const m = Math.floor(secs / 60);
-            const s = secs % 60;
-            return `${m}:${s < 10 ? '0' : ''}${s}`;
-        }
-
-        function tick() {
-            if (isPaused) return;
-
-            // Start-of-set 5-second countdown beeps
-            if (phase === 'PREP' && timeLeft <= 5 && timeLeft > 0) {
-                playBeep(440, 0.1, 1);
-            }
-
-            timeLeft--;
-
-            if (timeLeft < 0) {
-                if (phase === 'PREP') {
-                    phase = 'WORK';
-                    timeLeft = parseInt(document.getElementById('duration-input').value);
-                    setNextRandomBeep();
-                    playBeep(880, 0.5, 1); // High start beep
-                } else {
-                    if (currentSet < totalSets) {
-                        currentSet++;
-                        phase = 'PREP';
-                        timeLeft = 5;
-                    } else {
-                        endWorkout();
-                        return;
-                    }
-                }
-            }
-
-            // Logic for Random Beeps during Work
-            if (phase === 'WORK' && !isPaused) {
-                if (timeLeft === nextBeepTime) {
-                    playBeep(660, 0.2, beepCountState);
-                    beepCountState = beepCountState === 1 ? 2 : 1; // Alternate
-                    setNextRandomBeep();
-                }
-            }
-
-            updateUI();
-        }
-
-        function setNextRandomBeep() {
-            // Next beep occurs at a random "timeLeft" value
-            // Gap is 5-60 seconds
-            let gap = Math.floor(Math.random() * (60 - 5 + 1)) + 5;
-            nextBeepTime = timeLeft - gap;
-        }
-
-        function updateUI() {
-            timerEl.textContent = phase === 'PREP' ? timeLeft : formatTime(timeLeft);
-            statusEl.textContent = phase;
-            statusEl.style.color = phase === 'PREP' ? 'var(--blue)' : 'var(--orange)';
-            infoEl.textContent = `Set: ${currentSet} / ${totalSets}`;
-        }
-
-        function toggleStart() {
-            if (isRunning) {
-                endWorkout();
-            } else {
-                totalSets = parseInt(document.getElementById('sets-input').value);
-                isRunning = true;
-                phase = 'PREP';
-                timeLeft = 5;
-                currentSet = 1;
-                beepCountState = 1;
-                
-                startBtn.innerText = 'STOP';
-                startBtn.classList.add('stop');
-                pauseBtn.style.display = 'block';
-                
-                updateUI();
-                mainInterval = setInterval(tick, 1000);
-            }
-        }
-
-        function togglePause() {
-            isPaused = !isPaused;
-            pauseBtn.innerText = isPaused ? 'RESUME' : 'PAUSE';
-            statusEl.textContent = isPaused ? 'PAUSED' : phase;
-        }
-
-        function endWorkout() {
+        label { display: block; font-weight: 800; font-size: 0.9rem; margin-bottom: 5px
