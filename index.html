@@ -77,7 +77,7 @@
 
     <script>
         let timer = null, running = false, paused = false, phase = 'PREP';
-        let time = 0, set = 1, total = 0, nextBeep = -1, beepState = 1, wake = null;
+        let time = 0, set = 1, total = 0, nextBeep = -1, beepState = 1;
         let audio = null;
 
         function flash(c) {
@@ -104,7 +104,9 @@
 
         function setBeep() {
             if (time <= 5) { nextBeep = -1; return; }
-            nextBeep = time - (Math.floor(Math.random() * 56) + 5);
+            // NEW INTERVAL: 5 TO 30 SECONDS
+            let gap = Math.floor(Math.random() * (30 - 5 + 1)) + 5;
+            nextBeep = time - gap;
         }
 
         function fmt(s) {
