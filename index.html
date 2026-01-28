@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Reactive Flash Trainer</title>
+    <title>Reactive Pro Custom</title>
     <style>
         :root {
             --bg: #FCF7F2; --deep: #3D1F6E; --orange: #F2631A;
@@ -16,19 +16,20 @@
             align-items: center; justify-content: center; height: 100vh; text-align: center;
             transition: background 0.1s ease-out; overflow: hidden;
         }
-        #timer { font-size: 8rem; font-weight: 900; line-height: 1; margin: 10px 0; }
+        #timer { font-size: 7rem; font-weight: 900; line-height: 1; margin: 10px 0; }
         #status { font-size: 2rem; font-weight: bold; color: var(--orange); text-transform: uppercase; }
-        #set-info { font-size: 1.2rem; margin-bottom: 20px; opacity: 0.8; }
+        #set-info { font-size: 1.2rem; margin-bottom: 15px; opacity: 0.8; }
         .card { 
-            background: var(--white); padding: 2rem; border-radius: 30px; 
+            background: var(--white); padding: 1.5rem; border-radius: 30px; 
             box-shadow: 0 10px 0 var(--deep); width: 85%; max-width: 400px;
-            border: 3px solid var(--black);
+            border: 3px solid var(--black); overflow-y: auto; max-height: 80vh;
         }
-        .input-group { margin-bottom: 20px; text-align: left; }
-        label { display: block; font-weight: 800; font-size: 0.9rem; margin-bottom: 5px; }
+        .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .input-group { text-align: left; }
+        label { display: block; font-weight: 800; font-size: 0.75rem; margin-bottom: 5px; text-transform: uppercase; }
         select { 
-            width: 100%; padding: 12px; border-radius: 12px; border: 2px solid var(--deep); 
-            font-size: 1.1rem; font-weight: bold; background: var(--bg);
+            width: 100%; padding: 10px; border-radius: 12px; border: 2px solid var(--deep); 
+            font-size: 1rem; font-weight: bold; background: var(--bg);
         }
         .controls { display: flex; gap: 10px; width: 100%; }
         button { 
@@ -50,25 +51,39 @@
     <div id="set-info">Set: 0 / 0</div>
 
     <div class="card">
-        <div class="input-group">
-            <label>NUMBER OF SETS</label>
-            <select id="sets-input">
-                <option value="1">1 Set</option>
-                <option value="2">2 Sets</option>
-                <option value="3">3 Sets</option>
-                <option value="5">5 Sets</option>
-                <option value="10">10 Sets</option>
-            </select>
+        <div class="input-grid">
+            <div class="input-group">
+                <label>Sets</label>
+                <select id="sets-input">
+                    <script>for(let i=1;i<=10;i++) document.write(`<option value="${i}">${i}</option>`)</script>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Set Duration</label>
+                <select id="dur-input">
+                    <option value="10">10s (Test)</option>
+                    <option value="60">1m</option>
+                    <option value="180" selected>3m</option>
+                    <option value="300">5m</option>
+                </select>
+            </div>
         </div>
-        <div class="input-group">
-            <label>SET DURATION</label>
-            <select id="dur-input">
-                <option value="10">10 Seconds (Test)</option>
-                <option value="60">1 Minute</option>
-                <option value="180" selected>3 Minutes</option>
-                <option value="300">5 Minutes</option>
-            </select>
+
+        <div class="input-grid">
+            <div class="input-group">
+                <label>Min Interval (s)</label>
+                <select id="min-rand">
+                    <script>for(let i=5;i<=55;i++) document.write(`<option value="${i}">${i}s</option>`)</script>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Max Interval (s)</label>
+                <select id="max-rand">
+                    <script>for(let i=10;i<=60;i++) document.write(`<option value="${i}" ${i==30?'selected':''}>${i}s</option>`)</script>
+                </select>
+            </div>
         </div>
+
         <div class="controls">
             <button id="start-btn" onclick="toggle()">START</button>
             <button id="pause-btn" onclick="p()">PAUSE</button>
@@ -104,8 +119,11 @@
 
         function setBeep() {
             if (time <= 5) { nextBeep = -1; return; }
-            // NEW INTERVAL: 5 TO 30 SECONDS
-            let gap = Math.floor(Math.random() * (30 - 5 + 1)) + 5;
+            let min = parseInt(document.getElementById('min-rand').value);
+            let max = parseInt(document.getElementById('max-rand').value);
+            if (min >= max) max = min + 1; // Safety check
+            
+            let gap = Math.floor(Math.random() * (max - min + 1)) + min;
             nextBeep = time - gap;
         }
 
