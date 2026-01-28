@@ -1,28 +1,30 @@
-function playBeep(freq, dur, reps) {
-            try {
-                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                if (audioCtx.state === 'suspended') audioCtx.resume();
-
-                if (phase === 'WORK') flash(reps === 1 ? 'flash-o' : 'flash-y');
-                else if (phase === 'PREP') flash('flash-b');
-
-                for (let i = 0; i < reps; i++) {
-                    setTimeout(() => {
-                        const osc = audioCtx.createOscillator();
-                        const gain = audioCtx.createGain();
-                        osc.connect(gain); gain.connect(audioCtx.destination);
-                        
-                        osc.frequency.value = freq;
-                        
-                        // VOLUME INCREASED HERE (from 0.1 to 0.5)
-                        gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-                        
-                        // This creates a quick fade out to prevent "popping" sounds
-                        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-                        
-                        osc.start(); 
-                        osc.stop(audioCtx.currentTime + dur);
-                    }, i * 200);
-                }
-            } catch(e) { console.error(e); }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Reactive Flash Trainer</title>
+    <style>
+        :root {
+            --bg: #FCF7F2; --deep: #3D1F6E; --orange: #F2631A;
+            --blue: #54BAF7; --yellow: #FFD447; --white: #FFFFFF; --black: #000000;
         }
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg); 
+            color: var(--deep); margin: 0; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; height: 100vh; text-align: center;
+            transition: background 0.1s ease-out;
+        }
+        #timer { font-size: 8rem; font-weight: 900; color: var(--deep); line-height: 1; margin: 10px 0; }
+        #status { font-size: 2rem; font-weight: bold; color: var(--orange); text-transform: uppercase; }
+        #set-info { font-size: 1.2rem; margin-bottom: 20px; color: var(--deep); opacity: 0.8; }
+        .card { 
+            background: var(--white); padding: 2rem; border-radius: 30px; 
+            box-shadow: 0 10px 0 var(--deep); width: 85%; max-width: 400px;
+            border: 3px solid var(--black);
+        }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; font-weight: 800; font-size: 0.9rem; margin-bottom: 5px; }
+        select { 
+            width: 100%; padding: 12px; border-radius: 12px; border:
