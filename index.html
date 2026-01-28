@@ -2,221 +2,182 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interval Timer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Randomized Interval Pro</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #54494B; /* Updated background color */
-            color: white;
-            text-align: center;
-        }
-        #timer, #set-timer {
-            font-size: 5rem;
-            margin-bottom: 20px;
-        }
-        #status {
-            font-size: 5rem;
-            margin-bottom: 10px;
-        }
-        input[type="number"] {
-            font-size: 3rem;
-            padding: 10px;
-            width: 120px;
-            text-align: center;
-        }
-        button {
-            padding: 15px 30px;
-            font-size: 2rem;
-            background-color: #D7D7D7;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 5px;
-        }
+        :root { --bg: #54494B; --accent: #38bdf8; --card: rgba(255,255,255,0.1); }
+        body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+        
+        #timer { font-size: 8rem; font-weight: bold; line-height: 1; margin: 0; }
+        #status { font-size: 2.5rem; color: var(--accent); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+        #set-info { font-size: 1.5rem; margin-bottom: 30px; opacity: 0.8; }
+
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 90%; max-width: 400px; margin-bottom: 20px; }
+        .input-group { background: var(--card); padding: 10px; border-radius: 12px; }
+        .input-group label { display: block; font-size: 0.8rem; margin-bottom: 5px; opacity: 0.7; }
+        input { background: transparent; border: none; color: white; font-size: 1.5rem; width: 100%; text-align: center; outline: none; }
+        
+        .controls { display: flex; gap: 10px; width: 90%; max-width: 400px; }
+        button { flex: 1; padding: 20px; font-size: 1.2rem; font-weight: bold; border-radius: 15px; border: none; cursor: pointer; transition: 0.2s; }
+        #start-btn { background: var(--accent); color: #0f172a; }
+        #pause-btn { background: #f59e0b; color: #0f172a; display: none; }
+        .stop { background: #ef4444 !important; color: white !important; }
     </style>
 </head>
 <body>
-    <div>
-        <div id="timer">10</div>
-        <div id="status">Get Ready</div>
-        <div id="set-timer">Set Timer: 03:00</div>
-        <div>
-            <label for="sets">Number of Sets:</label>
-            <input type="number" id="sets" min="1" value="3">
+
+    <div id="status">READY</div>
+    <div id="timer">0</div>
+    <div id="set-info">Set: 0 / 0</div>
+
+    <div class="config-grid" id="setup-ui">
+        <div class="input-group">
+            <label>Sets</label>
+            <input type="number" id="sets" value="3">
         </div>
-        <br>
-        <button onclick="startTimer()">Start Timer</button>
-        <button onclick="pauseTimer()" id="pause-btn">Pause</button>
+        <div class="input-group">
+            <label>Work (Secs)</label>
+            <input type="number" id="work-dur" value="180">
+        </div>
+        <div class="input-group">
+            <label>Rest (Secs)</label>
+            <input type="number" id="rest-dur" value="60">
+        </div>
+        <div class="input-group">
+            <label>Rand. Max (Secs)</label>
+            <input type="number" id="rand-max" value="15">
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="start-btn" onclick="toggleStart()">START</button>
+        <button id="pause-btn" onclick="togglePause()">PAUSE</button>
     </div>
 
     <script>
-        let sets;
-        let currentSet = 0;
-        let totalSetDuration = 180; // 3 minutes in seconds
-        let remainingTime;
-        let setRemainingTime;
-        let interval;
-        let countdown = 10; // 10 second countdown
-        let isWorkPeriod = true;
-        let workPeriods = [];
-        let restPeriods = [];
+        let interval = null;
+        let isRunning = false;
         let isPaused = false;
-        let pausedTime;
+        let phase = 'PREP'; // PREP, WORK, REST
+        let currentSet = 1;
         
-        const timerElement = document.getElementById('timer');
-        const statusElement = document.getElementById('status');
-        const setTimerElement = document.getElementById('set-timer');
-        const setsInput = document.getElementById('sets');
-        const pauseButton = document.getElementById('pause-btn');
+        let timeLeft = 10;
+        let totalSets = 0;
+        let workSecs = 0;
+        let restSecs = 0;
+        let nextRandomTrigger = 0;
 
-        function startTimer() {
-            sets = parseInt(setsInput.value);
-            currentSet = 0;
-            statusElement.textContent = 'Get Ready';
-            remainingTime = countdown;
-            setRemainingTime = totalSetDuration;
-            timerElement.textContent = remainingTime;
-            setTimerElement.textContent = `Set Timer: ${formatTime(setRemainingTime)}`;
-            interval = setInterval(countdownTimer, 1000);
+        const timerEl = document.getElementById('timer');
+        const statusEl = document.getElementById('status');
+        const infoEl = document.getElementById('set-info');
+        const setupUI = document.getElementById('setup-ui');
+        const startBtn = document.getElementById('start-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+
+        // Reusable Audio Context
+        let audioCtx = null;
+
+        function playBeep(isHigh = false) {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.frequency.value = isHigh ? 1000 : 500;
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + (isHigh ? 0.4 : 0.1));
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + (isHigh ? 0.4 : 0.1));
         }
 
-        function countdownTimer() {
-            if (!isPaused) {
-                remainingTime--;
-                timerElement.textContent = remainingTime;
-                playBeep();
+        function updateUI() {
+            timerEl.textContent = timeLeft;
+            statusEl.textContent = phase;
+            infoEl.textContent = `Set: ${currentSet} / ${totalSets}`;
+            
+            if(phase === 'WORK') statusEl.style.color = '#4ade80';
+            else if(phase === 'REST') statusEl.style.color = '#f87171';
+            else statusEl.style.color = '#38bdf8';
+        }
 
-                if (remainingTime <= 0) {
-                    clearInterval(interval);
-                    startSet();
+        function tick() {
+            if (isPaused) return;
+
+            if (timeLeft <= 5 && timeLeft > 0) playBeep(false);
+            if (timeLeft === 1) setTimeout(() => playBeep(true), 1000);
+
+            timeLeft--;
+
+            if (timeLeft < 0) {
+                switchPhase();
+            }
+            updateUI();
+        }
+
+        function switchPhase() {
+            if (phase === 'PREP') {
+                phase = 'WORK';
+                timeLeft = workSecs;
+            } else if (phase === 'WORK') {
+                if (currentSet >= totalSets) {
+                    endWorkout();
+                    return;
                 }
+                phase = 'REST';
+                timeLeft = restSecs;
+            } else if (phase === 'REST') {
+                currentSet++;
+                phase = 'WORK';
+                timeLeft = workSecs;
             }
         }
 
-        function startSet() {
-            if (currentSet < sets) {
-                workPeriods = [];
-                restPeriods = [];
-                let remainingSetTime = totalSetDuration;
-
-                while (remainingSetTime > 0) {
-                    let workTime = getRandomInt(5, 30); // Random work period between 5 and 30 seconds
-                    if (remainingSetTime - workTime <= 0) {
-                        workTime = remainingSetTime;
-                    }
-                    workPeriods.push(workTime);
-                    remainingSetTime -= workTime;
-
-                    let restTime = getRandomInt(5, 20); // Random rest period between 5 and 20 seconds
-                    if (remainingSetTime - restTime <= 0) {
-                        restTime = remainingSetTime;
-                    }
-                    restPeriods.push(restTime);
-                    remainingSetTime -= restTime;
-                }
-
-                statusElement.textContent = 'Work';
-                isWorkPeriod = true;
-                remainingTime = workPeriods.shift();
-                setRemainingTime = totalSetDuration;
-                timerElement.textContent = remainingTime;
-                setTimerElement.textContent = `Set Timer: ${formatTime(setRemainingTime)}`;
-                interval = setInterval(runInterval, 1000);
+        function toggleStart() {
+            if (isRunning) {
+                endWorkout();
             } else {
-                statusElement.textContent = 'Workout Complete!';
-                timerElement.textContent = '';
-                setTimerElement.textContent = '';
+                // Initialize
+                totalSets = parseInt(document.getElementById('sets').value);
+                workSecs = parseInt(document.getElementById('work-dur').value);
+                restSecs = parseInt(document.getElementById('rest-dur').value);
+                
+                isRunning = true;
+                phase = 'PREP';
+                timeLeft = 10;
+                currentSet = 1;
+                
+                setupUI.style.display = 'none';
+                startBtn.innerText = 'STOP';
+                startBtn.classList.add('stop');
+                pauseBtn.style.display = 'block';
+                
+                updateUI();
+                interval = setInterval(tick, 1000);
             }
         }
 
-        function runInterval() {
-            if (!isPaused) {
-                remainingTime--;
-                setRemainingTime--;
-                timerElement.textContent = remainingTime;
-                setTimerElement.textContent = `Set Timer: ${formatTime(setRemainingTime)}`;
-                playBeep();
-
-                if (remainingTime <= 0) {
-                    clearInterval(interval);
-                    if (isWorkPeriod) {
-                        if (restPeriods.length > 0) {
-                            statusElement.textContent = 'Rest';
-                            remainingTime = restPeriods.shift();
-                            isWorkPeriod = false;
-                        } else {
-                            currentSet++;
-                            startSet();
-                            return;
-                        }
-                    } else {
-                        if (workPeriods.length > 0) {
-                            statusElement.textContent = 'Work';
-                            remainingTime = workPeriods.shift();
-                            isWorkPeriod = true;
-                        } else {
-                            currentSet++;
-                            startSet();
-                            return;
-                        }
-                    }
-                    timerElement.textContent = remainingTime;
-                    interval = setInterval(runInterval, 1000);
-                }
-            }
+        function togglePause() {
+            isPaused = !isPaused;
+            pauseBtn.innerText = isPaused ? 'RESUME' : 'PAUSE';
+            statusEl.textContent = isPaused ? 'PAUSED' : phase;
         }
 
-        function pauseTimer() {
-            if (!isPaused) {
-                clearInterval(interval);
-                pauseButton.textContent = 'Resume';
-                isPaused = true;
-            } else {
-                pauseButton.textContent = 'Pause';
-                isPaused = false;
-                interval = setInterval(runInterval, 1000);
-            }
-        }
-
-        function playBeep() {
-            const volume = 0.1; // Lower the volume
-            if (remainingTime <= 5 && remainingTime > 0) { // Beeps for the last 5 seconds
-                const beep = new AudioContext();
-                const oscillator = beep.createOscillator();
-                oscillator.type = 'square';
-                oscillator.frequency.setValueAtTime(500, beep.currentTime); // 500 Hz beep
-                const gainNode = beep.createGain();
-                gainNode.gain.setValueAtTime(volume, beep.currentTime);
-                oscillator.connect(gainNode).connect(beep.destination);
-                oscillator.start();
-                oscillator.stop(beep.currentTime + 0.1); // Beep lasts 0.1 seconds
-            } else if (remainingTime === 0) { // Last beep is different (longer and higher pitch)
-                const beep = new AudioContext();
-                const oscillator = beep.createOscillator();
-                oscillator.type = 'square';
-                oscillator.frequency.setValueAtTime(1000, beep.currentTime); // 1000 Hz beep
-                const gainNode = beep.createGain();
-                gainNode.gain.setValueAtTime(volume, beep.currentTime);
-                oscillator.connect(gainNode).connect(beep.destination);
-                oscillator.start();
-                oscillator.stop(beep.currentTime + 0.4); // Beep lasts 0.4 seconds
-            }
-        }
-
-        function getRandomInt(min, max) {
-            return Math.floor(Math.random() * (max - min + 1)) + min;
-        }
-
-        function formatTime(seconds) {
-            const minutes = Math.floor(seconds / 60);
-            const remainingSeconds = seconds % 60;
-            return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        function endWorkout() {
+            clearInterval(interval);
+            isRunning = false;
+            isPaused = false;
+            setupUI.style.display = 'grid';
+            startBtn.innerText = 'START';
+            startBtn.classList.remove('stop');
+            pauseBtn.style.display = 'none';
+            statusEl.textContent = 'COMPLETE';
+            statusEl.style.color = '#38bdf8';
+            timerEl.textContent = '0';
         }
     </script>
 </body>
